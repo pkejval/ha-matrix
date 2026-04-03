@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 import voluptuous as vol
 
@@ -26,12 +27,20 @@ def _parse_rooms(value: str) -> list[str]:
     return rooms
 
 
+def _validate_homeserver(value: str) -> str:
+    """Validate and normalize the homeserver URL."""
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise vol.Invalid("Homeserver must be a valid http(s) URL")
+    return value.rstrip("/")
+
+
 def _user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     """Return the base config schema."""
     defaults = defaults or {}
     return vol.Schema(
         {
-            vol.Required(CONF_HOMESERVER, default=defaults.get(CONF_HOMESERVER, "")): cv.url,
+            vol.Required(CONF_HOMESERVER, default=defaults.get(CONF_HOMESERVER, "")): cv.string,
             vol.Required(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "")): cv.string,
             vol.Required(CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")): cv.string,
             vol.Optional(
@@ -68,12 +77,19 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            await self.async_set_unique_id(
-                f"{user_input[CONF_HOMESERVER]}|{user_input[CONF_USERNAME]}"
-            )
-            self._abort_if_unique_id_configured()
-            self._user_input = user_input
-            return await self.async_step_rooms()
+            try:
+                user_input[CONF_HOMESERVER] = _validate_homeserver(
+                    user_input[CONF_HOMESERVER]
+                )
+            except vol.Invalid:
+                errors[CONF_HOMESERVER] = "invalid_homeserver"
+            else:
+                await self.async_set_unique_id(
+                    f"{user_input[CONF_HOMESERVER]}|{user_input[CONF_USERNAME]}"
+                )
+                self._abort_if_unique_id_configured()
+                self._user_input = user_input
+                return await self.async_step_rooms()
 
         return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
 
@@ -105,6 +121,14 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Import config from YAML if needed."""
         return await self.async_step_user(import_data)
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Return the options flow."""
+        return MatrixRoomsOptionsFlow()
 
 
 class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
@@ -150,10 +174,3 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
             errors=errors,
         )
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> config_entries.OptionsFlow:
-        """Return the options flow."""
-        return MatrixRoomsOptionsFlow()
