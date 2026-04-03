@@ -15,11 +15,24 @@
         "data": {
           "rooms": "Rooms"
         }
+      },
+      "room_add": {
+        "title": "Add a room",
+        "data": {
+          "rooms": "Room ID or alias"
+        }
+      },
+      "room_menu": {
+        "title": "Rooms",
+        "menu_options": {
+          "room_add": "Add another room",
+          "finish": "Finish setup"
+        }
       }
     },
     "error": {
       "invalid_homeserver": "Enter a valid http or https Matrix homeserver URL.",
-      "invalid_rooms": "Enter Matrix room IDs or aliases separated by new lines, commas, or semicolons."
+      "invalid_room": "Enter a Matrix room ID or alias starting with ! or #."
     }
   },
   "options": {
@@ -38,11 +51,24 @@
         "data": {
           "rooms": "Rooms"
         }
+      },
+      "room_add": {
+        "title": "Add a room",
+        "data": {
+          "rooms": "Room ID or alias"
+        }
+      },
+      "room_menu": {
+        "title": "Rooms",
+        "menu_options": {
+          "room_add": "Add another room",
+          "finish": "Finish setup"
+        }
       }
     },
     "error": {
       "invalid_homeserver": "Enter a valid http or https Matrix homeserver URL.",
-      "invalid_rooms": "Enter Matrix room IDs or aliases separated by new lines, commas, or semicolons."
+      "invalid_room": "Enter a Matrix room ID or alias starting with ! or #."
     }
   }
 }

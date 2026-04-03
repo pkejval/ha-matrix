@@ -11,20 +11,17 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
 from .const import CONF_HOMESERVER, CONF_ROOMS, DOMAIN
-from .util import normalize_room_ids
-
-
-def _parse_rooms(value: str) -> list[str]:
-    """Parse room ids or aliases from a text field."""
-    rooms = normalize_room_ids(value)
-    invalid = [room for room in rooms if not room.startswith(("!", "#"))]
-    if invalid:
+def _parse_room(value: str) -> str:
+    """Parse a single room id or alias from a text field."""
+    room = value.strip()
+    if not room or not room.startswith(("!", "#")):
         raise vol.Invalid(
-            "Rooms must be Matrix room ids or aliases starting with ! or #"
+            "Room must be a Matrix room id or alias starting with ! or #"
         )
-    return rooms
+    return room
 
 
 def _validate_homeserver(value: str) -> str:
@@ -52,12 +49,16 @@ def _user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
 
 
 def _rooms_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Return the room list schema."""
+    """Return the single-room schema."""
     defaults = defaults or {}
-    room_value = "\n".join(defaults.get(CONF_ROOMS, []))
     return vol.Schema(
         {
-            vol.Optional(CONF_ROOMS, default=room_value): cv.string,
+            vol.Required(
+                CONF_ROOMS,
+                default=defaults.get(CONF_ROOMS, ""),
+            ): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
         }
     )
 
@@ -69,6 +70,7 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._user_input: dict[str, Any] = {}
+        self._rooms: list[str] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -89,31 +91,47 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 self._abort_if_unique_id_configured()
                 self._user_input = user_input
-                return await self.async_step_rooms()
+                self._rooms = []
+                return await self.async_step_room_add()
 
         return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
 
-    async def async_step_rooms(
+    async def async_step_room_add(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Handle the room selection step."""
+        """Handle a single room selection step."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             try:
-                rooms = _parse_rooms(user_input.get(CONF_ROOMS, ""))
+                room = _parse_room(user_input[CONF_ROOMS])
             except vol.Invalid:
-                errors[CONF_ROOMS] = "invalid_rooms"
+                errors[CONF_ROOMS] = "invalid_room"
             else:
-                return self.async_create_entry(
-                    title=f"{self._user_input[CONF_USERNAME]} @ {self._user_input[CONF_HOMESERVER]}",
-                    data={**self._user_input, CONF_ROOMS: rooms},
-                )
+                if room not in self._rooms:
+                    self._rooms.append(room)
+                return await self.async_step_room_menu()
 
         return self.async_show_form(
-            step_id="rooms",
-            data_schema=_rooms_schema(self._user_input),
+            step_id="room_add",
+            data_schema=_rooms_schema(),
             errors=errors,
+        )
+
+    async def async_step_room_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Choose whether to add another room or finish."""
+        return self.async_show_menu(
+            step_id="room_menu",
+            menu_options=["room_add", "finish"],
+        )
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> config_entries.ConfigFlowResult:
+        """Finish the flow."""
+        return self.async_create_entry(
+            title=f"{self._user_input[CONF_USERNAME]} @ {self._user_input[CONF_HOMESERVER]}",
+            data={**self._user_input, CONF_ROOMS: list(self._rooms)},
         )
 
     async def async_step_import(
@@ -136,6 +154,7 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
 
     def __init__(self) -> None:
         self._user_input: dict[str, Any] = {}
+        self._rooms: list[str] = []
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -143,34 +162,52 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
         """Manage the options."""
         if not self._user_input:
             self._user_input = {**self.config_entry.data, **self.config_entry.options}
+        if not self._rooms:
+            self._rooms = list(self._user_input.get(CONF_ROOMS, []))
 
         if user_input is not None:
             self._user_input.update(user_input)
-            return await self.async_step_rooms()
+            return await self.async_step_room_add()
 
         return self.async_show_form(
             step_id="init",
             data_schema=_user_schema(self._user_input),
         )
 
-    async def async_step_rooms(
+    async def async_step_room_add(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Edit rooms."""
+        """Add a single room."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             try:
-                rooms = _parse_rooms(user_input.get(CONF_ROOMS, ""))
+                room = _parse_room(user_input[CONF_ROOMS])
             except vol.Invalid:
-                errors[CONF_ROOMS] = "invalid_rooms"
+                errors[CONF_ROOMS] = "invalid_room"
             else:
-                data = {**self._user_input, CONF_ROOMS: rooms}
-                return self.async_create_entry(title="", data=data)
+                if room not in self._rooms:
+                    self._rooms.append(room)
+                return await self.async_step_room_menu()
 
         return self.async_show_form(
-            step_id="rooms",
-            data_schema=_rooms_schema(self._user_input),
+            step_id="room_add",
+            data_schema=_rooms_schema(),
             errors=errors,
         )
 
+    async def async_step_room_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Choose whether to add another room or finish."""
+        return self.async_show_menu(
+            step_id="room_menu",
+            menu_options=["room_add", "finish"],
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Save options."""
+        data = {**self._user_input, CONF_ROOMS: list(self._rooms)}
+        return self.async_create_entry(title="", data=data)

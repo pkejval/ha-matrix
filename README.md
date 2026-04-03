@@ -28,7 +28,7 @@ Note: this first version is for non-encrypted rooms. End-to-end encryption suppo
 
 Create one config entry per Matrix server.
 
-The room field accepts room IDs or aliases separated by new lines, commas, or semicolons.
+Rooms are added one by one in the UI flow. Enter either a room ID like `!abcdef:example.org` or an alias like `#alerts:example.org`, then choose whether to add another room or finish.
 
 Example:
 
