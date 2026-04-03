@@ -18,6 +18,30 @@
       }
     },
     "error": {
+      "invalid_homeserver": "Enter a valid http or https Matrix homeserver URL.",
+      "invalid_rooms": "Enter Matrix room IDs or aliases separated by new lines, commas, or semicolons."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit Matrix server",
+        "data": {
+          "homeserver": "Homeserver",
+          "username": "Username",
+          "password": "Password",
+          "verify_ssl": "Verify SSL"
+        }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "data": {
+          "rooms": "Rooms"
+        }
+      }
+    },
+    "error": {
+      "invalid_homeserver": "Enter a valid http or https Matrix homeserver URL.",
       "invalid_rooms": "Enter Matrix room IDs or aliases separated by new lines, commas, or semicolons."
     }
   }

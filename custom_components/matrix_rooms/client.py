@@ -23,8 +23,12 @@ from nio.responses import (
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+)
 from homeassistant.helpers.storage import Store
 
 from .const import (
@@ -83,6 +87,23 @@ class MatrixRoomsClient:
             self._async_run(),
             name=f"{DOMAIN}:sync:{self.entry.entry_id}",
         )
+
+        try:
+            await asyncio.wait_for(self._ready.wait(), timeout=_SERVICE_READY_TIMEOUT)
+        except asyncio.TimeoutError as err:
+            await self.async_stop()
+            raise ConfigEntryNotReady(
+                f"Matrix client did not become ready within {_SERVICE_READY_TIMEOUT} seconds"
+            ) from err
+
+        if self._startup_error is not None:
+            startup_error = self._startup_error
+            await self.async_stop()
+            if isinstance(startup_error, ConfigEntryAuthFailed):
+                raise startup_error
+            raise ConfigEntryNotReady(
+                "Matrix client failed during startup"
+            ) from startup_error
 
     async def async_stop(self) -> None:
         """Stop the sync task and close the client."""
@@ -313,7 +334,8 @@ class MatrixRoomsClient:
             f"Unable to resolve Matrix room alias '{room_id_or_alias}': {response}"
         )
 
-    async def _async_handle_message(self, room: MatrixRoom, event: RoomMessageText) -> None:
+    @callback
+    def _async_handle_message(self, room: MatrixRoom, event: RoomMessageText) -> None:
         """Forward received text messages to the Home Assistant event bus."""
         sender_name = self._async_get_user_name(room, event.sender)
         self.hass.bus.async_fire(
@@ -331,12 +353,10 @@ class MatrixRoomsClient:
             },
         )
 
-    async def _async_handle_receipt(self, room: MatrixRoom, event: ReceiptEvent) -> None:
+    @callback
+    def _async_handle_receipt(self, room: MatrixRoom, event: ReceiptEvent) -> None:
         """Forward read receipts to the Home Assistant event bus."""
         for receipt in event.receipts:
-            if receipt.user_id == self._client.user_id:
-                continue
-
             self.hass.bus.async_fire(
                 EVENT_SEEN,
                 {
@@ -356,7 +376,10 @@ class MatrixRoomsClient:
 
     async def _async_wait_until_ready(self) -> None:
         """Wait for the first successful startup or fail fast."""
-        await asyncio.wait_for(self._ready.wait(), timeout=_SERVICE_READY_TIMEOUT)
+        try:
+            await asyncio.wait_for(self._ready.wait(), timeout=_SERVICE_READY_TIMEOUT)
+        except asyncio.TimeoutError as err:
+            raise HomeAssistantError("Matrix client is not ready") from err
         if self._startup_error is not None:
             raise HomeAssistantError("Matrix client startup failed") from self._startup_error
 
