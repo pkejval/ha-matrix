@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
@@ -12,7 +12,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
 
-from .client import MatrixRoomsClient
 from .const import (
     ATTR_ENTRY_ID,
     ATTR_MESSAGE,
@@ -21,6 +20,9 @@ from .const import (
     PLATFORMS,
     SERVICE_SEND_MESSAGE,
 )
+
+if TYPE_CHECKING:
+    from .client import MatrixRoomsClient
 
 SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
     {
@@ -38,6 +40,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Matrix Rooms from a config entry."""
+    from .client import MatrixRoomsClient
+
     domain_data = hass.data.setdefault(DOMAIN, {})
 
     if not domain_data.get("service_registered"):

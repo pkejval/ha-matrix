@@ -25,7 +25,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
-from homeassistant.helpers.json import load_json_object, save_json
+from homeassistant.helpers.storage import Store
 
 from .const import (
     ATTR_ENTRY_ID,
@@ -56,8 +56,8 @@ class MatrixRoomsClient:
         self._password: str = config[CONF_PASSWORD]
         self._verify_ssl: bool = config[CONF_VERIFY_SSL]
         self._configured_rooms: list[str] = list(config.get(CONF_ROOMS, []))
-        self._session_file = hass.config.path(f"{_SESSION_FILE_PREFIX}{entry.entry_id}.json")
         self._store_path = hass.config.path(f"{_SESSION_FILE_PREFIX}{entry.entry_id}")
+        self._session_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._ready = asyncio.Event()
         self._startup_error: BaseException | None = None
         self._draft_messages: dict[str, str] = {}
@@ -228,13 +228,7 @@ class MatrixRoomsClient:
 
     async def _async_load_access_token(self) -> dict[str, str] | None:
         """Load the cached access token from disk."""
-        try:
-            data = await self.hass.async_add_executor_job(
-                load_json_object,
-                self._session_file,
-            )
-        except (FileNotFoundError, HomeAssistantError, OSError, ValueError):
-            return None
+        data = await self._session_store.async_load()
 
         if not isinstance(data, dict):
             return None
@@ -264,14 +258,7 @@ class MatrixRoomsClient:
 
     async def _async_store_access_token(self) -> None:
         """Store the access token to disk."""
-        try:
-            current = await self.hass.async_add_executor_job(
-                load_json_object,
-                self._session_file,
-            )
-        except (FileNotFoundError, HomeAssistantError, OSError, ValueError):
-            current = {}
-
+        current = await self._session_store.async_load()
         if not isinstance(current, dict):
             current = {}
 
@@ -280,12 +267,7 @@ class MatrixRoomsClient:
             "device_id": self._client.device_id or "",
             "user_id": self._client.user_id or self._username,
         }
-        await self.hass.async_add_executor_job(
-            save_json,
-            self._session_file,
-            current,
-            True,
-        )
+        await self._session_store.async_save(current)
 
     async def _async_resolve_and_join_rooms(self) -> None:
         """Resolve aliases and join the configured rooms."""
