@@ -1,0 +1,18 @@
+send_message:
+  name: Send message
+  description: Send a plain text message to a Matrix room.
+  fields:
+    entry_id:
+      name: Config entry
+      description: Optional config entry id. Required when more than one Matrix server is configured.
+      example: "0123456789abcdef0123456789abcdef"
+    room_id:
+      name: Room id or alias
+      description: Matrix room id or alias, for example !abcdef:example.org or #room:example.org.
+      required: true
+      example: "!abcdef:example.org"
+    message:
+      name: Message
+      description: Text message to send to the room.
+      required: true
+      example: "Hello from Home Assistant"

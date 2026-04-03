@@ -1,0 +1,13 @@
+{
+  "domain": "matrix_rooms",
+  "name": "Matrix Rooms",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/pkejval/ha-matrix",
+  "issue_tracker": "https://github.com/pkejval/ha-matrix/issues",
+  "codeowners": [],
+  "dependencies": [],
+  "requirements": ["matrix-nio>=0.25.2"],
+  "iot_class": "local_polling",
+  "loggers": ["nio", "custom_components.matrix_rooms"]
+}
