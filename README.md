@@ -13,6 +13,7 @@ The integration uses the `matrix_rooms` domain so it does not clash with the bui
 - Fire Home Assistant events for:
   - `matrix_rooms_received_new_msg`
   - `matrix_rooms_seen`
+  - `matrix_rooms_sent_msg`
 - Create UI entities per room:
   - `sensor` for the last message
   - `sensor` for the last seen receipt
@@ -85,6 +86,19 @@ For each configured room, the integration creates:
 - `event_id`
 - `receipt_type`
 - `thread_id`
+- `timestamp`
+
+### `matrix_rooms_sent_msg`
+
+- `entry_id`
+- `homeserver`
+- `room_id`
+- `room_name`
+- `sender`
+- `sender_name`
+- `self`
+- `message`
+- `event_id`
 - `timestamp`
 
 ### Sensor states

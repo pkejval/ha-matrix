@@ -117,7 +117,7 @@ class MatrixRoomsClient:
 
         await self._client.close()
 
-    async def async_send_message(self, room_id: str, message: str) -> None:
+    async def async_send_message(self, room_id: str, message: str) -> Response:
         """Send a plain text message to a Matrix room."""
         await self._async_wait_until_ready()
         resolved_room = self._canonical_room_ref(room_id)
@@ -134,6 +134,8 @@ class MatrixRoomsClient:
             raise HomeAssistantError(
                 f"Unable to deliver message to room '{room_id}': {response}"
             )
+
+        return response
 
     def get_draft(self, room_id: str) -> str:
         """Return the current draft message for a room."""
@@ -164,6 +166,16 @@ class MatrixRoomsClient:
     def canonical_room_ref(self, room_id_or_alias: str) -> str:
         """Return the canonical room id for a configured room reference."""
         return self._canonical_room_ref(room_id_or_alias)
+
+    @property
+    def homeserver(self) -> str:
+        """Return the configured homeserver URL."""
+        return self._homeserver
+
+    @property
+    def username(self) -> str:
+        """Return the configured Matrix username."""
+        return self._username
 
     async def _async_run(self) -> None:
         """Login, join rooms and keep sync running with backoff."""

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from time import time
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -20,11 +22,13 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SERVICE_SEND_MESSAGE,
+    EVENT_SENT_MSG,
 )
 from .room import (
     iter_room_definitions,
     room_device_identifier,
     room_device_registry_kwargs,
+    room_display_name,
     server_device_registry_kwargs,
 )
 
@@ -141,7 +145,23 @@ async def _async_send_message_service(call: ServiceCall) -> None:
             )
         client = clients[0]
 
-    await client.async_send_message(
+    response = await client.async_send_message(
         room_id=call.data[ATTR_ROOM_ID],
         message=call.data[ATTR_MESSAGE],
+    )
+    resolved_room = client.canonical_room_ref(call.data[ATTR_ROOM_ID])
+    hass.bus.async_fire(
+        EVENT_SENT_MSG,
+        {
+            ATTR_ENTRY_ID: client.entry.entry_id,
+            "homeserver": client.homeserver,
+            "room_id": resolved_room,
+            "room_name": room_display_name(call.data[ATTR_ROOM_ID]),
+            "sender": client.username,
+            "sender_name": client.username,
+            "self": True,
+            "message": call.data[ATTR_MESSAGE],
+            "event_id": getattr(response, "event_id", None),
+            "timestamp": int(time() * 1000),
+        },
     )
