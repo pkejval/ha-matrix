@@ -30,7 +30,11 @@ class _BaseMatrixRoomEventSensor(SensorEntity):
         self._attr_name = self._sensor_name
         self._unsub = None
         self._attrs: dict[str, Any] = {}
-        self._attr_device_info = room_device_info(entry, room)
+
+    @property
+    def device_info(self):
+        """Return the linked Matrix room device."""
+        return room_device_info(self._entry, self._room)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
