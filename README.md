@@ -14,8 +14,6 @@ The integration uses the `matrix_rooms` domain so it does not clash with the bui
   - `matrix_rooms_received_new_msg`
   - `matrix_rooms_seen`
 - Create UI entities per room:
-  - `text` for the outgoing draft message
-  - `button` to send the current draft
   - `sensor` for the last message
   - `sensor` for the last seen receipt
 
@@ -57,12 +55,8 @@ If you have configured only one Matrix server, `entry_id` can be omitted.
 
 For each configured room, the integration creates:
 
-- a text entity for composing the message
-- a button entity that sends the current draft
 - a sensor entity that tracks the latest message for that room
 - a sensor entity that tracks the latest seen receipt for that room
-
-The button sends the current text draft for the same room. After sending, the draft is cleared.
 
 ## Event payloads
 

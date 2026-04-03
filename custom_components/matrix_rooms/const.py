@@ -19,4 +19,4 @@ SERVICE_SEND_MESSAGE = "send_message"
 EVENT_SEEN = f"{DOMAIN}_seen"
 EVENT_RECEIVED_NEW_MSG = f"{DOMAIN}_received_new_msg"
 
-PLATFORMS = [Platform.BUTTON, Platform.SENSOR, Platform.TEXT]
+PLATFORMS = [Platform.SENSOR]
