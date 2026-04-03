@@ -14,20 +14,21 @@ from .const import EVENT_RECEIVED_NEW_MSG, EVENT_SEEN
 from .room import iter_room_definitions, room_device_info
 
 
-class MatrixRoomEventSensor(SensorEntity):
-    """Track the last Matrix event for a configured room."""
+class _BaseMatrixRoomEventSensor(SensorEntity):
+    """Base Matrix event sensor for a configured room."""
 
     _attr_has_entity_name = True
-    _attr_native_value = "idle"
+    _event_type: str
+    _unique_id_prefix: str
+    _sensor_name: str
 
     def __init__(self, client, entry: ConfigEntry, room: str, suffix: str) -> None:
         self._client = client
         self._entry = entry
         self._room = room
-        self._attr_unique_id = f"{entry.entry_id}_event_{suffix}"
-        self._attr_name = "Last event"
+        self._attr_unique_id = f"{entry.entry_id}_{self._unique_id_prefix}_{suffix}"
+        self._attr_name = self._sensor_name
         self._unsub = None
-        self._unsub2 = None
         self._attrs: dict[str, Any] = {}
         self._attr_device_info = room_device_info(entry, room)
 
@@ -43,17 +44,13 @@ class MatrixRoomEventSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         """Listen for Matrix bus events."""
-        self._unsub = self.hass.bus.async_listen(EVENT_RECEIVED_NEW_MSG, self._handle_event)
-        self._unsub2 = self.hass.bus.async_listen(EVENT_SEEN, self._handle_event)
+        self._unsub = self.hass.bus.async_listen(self._event_type, self._handle_event)
 
     async def async_will_remove_from_hass(self) -> None:
         """Remove listeners."""
         if self._unsub is not None:
             self._unsub()
             self._unsub = None
-        if self._unsub2 is not None:
-            self._unsub2()
-            self._unsub2 = None
 
     @callback
     def _handle_event(self, event) -> None:
@@ -66,14 +63,44 @@ class MatrixRoomEventSensor(SensorEntity):
         if data.get("room_id") != canonical_room:
             return
 
-        event_type = event.event_type
-        if event_type == EVENT_RECEIVED_NEW_MSG:
-            self._attr_native_value = f"{data.get('sender_name', data.get('sender', 'unknown'))}: {data.get('message', '')}"
-        else:
-            self._attr_native_value = f"seen by {data.get('seen_by_name', data.get('seen_by', 'unknown'))}"
-
-        self._attrs = {"event_type": event_type, **dict(data)}
+        self._attr_native_value = self._format_native_value(data)
+        self._attrs = {"event_type": event.event_type, **dict(data)}
         self.async_write_ha_state()
+
+    def _format_native_value(self, data: dict[str, Any]) -> str:
+        """Format the state shown in the UI."""
+        raise NotImplementedError
+
+
+class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
+    """Track the last Matrix message for a configured room."""
+
+    _attr_native_value = "idle"
+
+    _event_type = EVENT_RECEIVED_NEW_MSG
+    _unique_id_prefix = "last_message"
+    _sensor_name = "Last message"
+
+    def _format_native_value(self, data: dict[str, Any]) -> str:
+        """Format the message state."""
+        sender = data.get("sender_name", data.get("sender", "unknown"))
+        message = data.get("message", "")
+        return f"{sender}: {message}"
+
+
+class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
+    """Track the last Matrix receipt for a configured room."""
+
+    _attr_native_value = "idle"
+
+    _event_type = EVENT_SEEN
+    _unique_id_prefix = "last_seen"
+    _sensor_name = "Last seen"
+
+    def _format_native_value(self, data: dict[str, Any]) -> str:
+        """Format the receipt state."""
+        seen_by = data.get("seen_by_name", data.get("seen_by", "unknown"))
+        return f"seen by {seen_by}"
 
 
 async def async_setup_entry(
@@ -83,8 +110,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up Matrix Rooms sensors."""
     client = get_client(hass, entry)
-    entities = [
-        MatrixRoomEventSensor(client, entry, room_def.room, room_def.entity_suffix)
-        for room_def in iter_room_definitions({**entry.data, **entry.options})
-    ]
+    entities = []
+    for room_def in iter_room_definitions({**entry.data, **entry.options}):
+        entities.append(
+            MatrixRoomLastMessageSensor(client, entry, room_def.room, room_def.entity_suffix)
+        )
+        entities.append(
+            MatrixRoomLastSeenSensor(client, entry, room_def.room, room_def.entity_suffix)
+        )
     async_add_entities(entities)

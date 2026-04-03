@@ -35,6 +35,11 @@ def _slugify_room(room: str) -> str:
     return slug or "room"
 
 
+def room_display_name(room: str) -> str:
+    """Return a human-friendly Matrix room label."""
+    return room.lstrip("#!") or room
+
+
 def iter_room_definitions(config: dict[str, Any]) -> list[RoomDefinition]:
     """Return configured rooms with stable entity suffixes."""
     rooms = list(dict.fromkeys(config.get(CONF_ROOMS, [])))
@@ -92,7 +97,7 @@ def room_device_info(entry: ConfigEntry, room: str) -> DeviceInfo:
     """Return the device info for a Matrix room device."""
     return DeviceInfo(
         identifiers={(DOMAIN, room_device_identifier(entry, room))},
-        name=room,
+        name=room_display_name(room),
         via_device=(DOMAIN, server_device_identifier(entry)),
         default_manufacturer="Matrix",
         default_model="Room",
