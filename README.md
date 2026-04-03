@@ -134,3 +134,47 @@ For each configured room, the integration creates:
 
 - `Last message` starts with `waiting for message`
 - `Last seen` starts with `waiting for receipt`
+
+## Automation examples
+
+### Send event
+
+```yaml
+alias: Matrix sent message log
+trigger:
+  - platform: event
+    event_type: matrix_rooms_sent_msg
+action:
+  - service: logbook.log
+    data:
+      name: Matrix
+      message: "{{ trigger.event.data.sender_name }} sent '{{ trigger.event.data.message }}' to {{ trigger.event.data.room_name }}"
+```
+
+### Last message update
+
+```yaml
+alias: Matrix last message alert
+trigger:
+  - platform: event
+    event_type: matrix_rooms_last_message_updated
+action:
+  - service: persistent_notification.create
+    data:
+      title: "Matrix message"
+      message: "{{ trigger.event.data.room_name }}: {{ trigger.event.data.sender_name }} -> {{ trigger.event.data.message }}"
+```
+
+### Last seen update
+
+```yaml
+alias: Matrix read receipt
+trigger:
+  - platform: event
+    event_type: matrix_rooms_last_seen_updated
+action:
+  - service: logbook.log
+    data:
+      name: Matrix
+      message: "{{ trigger.event.data.room_name }} seen by {{ trigger.event.data.seen_by_name }}"
+```
