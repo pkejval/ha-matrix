@@ -350,6 +350,7 @@ class MatrixRoomsClient:
                 "self": event.sender == self._client.user_id,
                 "message": event.body,
                 "event_id": event.event_id,
+                "timestamp": self._async_get_event_timestamp(event),
             },
         )
 
@@ -396,3 +397,19 @@ class MatrixRoomsClient:
             return room.user_name(user_id)
         except Exception:  # noqa: BLE001
             return user_id
+
+    @staticmethod
+    def _async_get_event_timestamp(event: RoomMessageText) -> int | None:
+        """Return the Matrix event timestamp if available."""
+        for attr_name in ("server_timestamp", "origin_server_ts", "timestamp"):
+            value = getattr(event, attr_name, None)
+            if isinstance(value, int):
+                return value
+
+        source = getattr(event, "source", None)
+        if isinstance(source, dict):
+            value = source.get("origin_server_ts")
+            if isinstance(value, int):
+                return value
+
+        return None

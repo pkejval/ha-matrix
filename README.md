@@ -77,6 +77,7 @@ The button sends the current text draft for the same room. After sending, the dr
 - `self`
 - `message`
 - `event_id`
+- `timestamp`
 
 ### `matrix_rooms_seen`
 
@@ -91,3 +92,8 @@ The button sends the current text draft for the same room. After sending, the dr
 - `receipt_type`
 - `thread_id`
 - `timestamp`
+
+### Sensor states
+
+- `Last message` starts with `waiting for message`
+- `Last seen` starts with `waiting for receipt`

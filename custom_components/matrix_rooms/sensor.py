@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import get_client
 from .const import EVENT_RECEIVED_NEW_MSG, EVENT_SEEN
-from .room import iter_room_definitions, room_device_info
+from .room import iter_room_definitions, room_device_info, room_display_name
 
 
 class _BaseMatrixRoomEventSensor(SensorEntity):
@@ -21,6 +21,8 @@ class _BaseMatrixRoomEventSensor(SensorEntity):
     _event_type: str
     _unique_id_prefix: str
     _sensor_name: str
+    _default_native_value: str
+    _default_attributes: dict[str, Any]
 
     def __init__(self, client, entry: ConfigEntry, room: str, suffix: str) -> None:
         self._client = client
@@ -29,7 +31,12 @@ class _BaseMatrixRoomEventSensor(SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{self._unique_id_prefix}_{suffix}"
         self._attr_name = self._sensor_name
         self._unsub = None
-        self._attrs: dict[str, Any] = {}
+        self._attr_native_value = self._default_native_value
+        self._attrs = {
+            "room_id": room,
+            "room_name": room_display_name(room),
+            **self._default_attributes,
+        }
 
     @property
     def device_info(self):
@@ -79,7 +86,8 @@ class _BaseMatrixRoomEventSensor(SensorEntity):
 class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
     """Track the last Matrix message for a configured room."""
 
-    _attr_native_value = "idle"
+    _default_native_value = "waiting for message"
+    _default_attributes = {"status": "waiting_for_message"}
 
     _event_type = EVENT_RECEIVED_NEW_MSG
     _unique_id_prefix = "last_message"
@@ -95,7 +103,8 @@ class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
 class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
     """Track the last Matrix receipt for a configured room."""
 
-    _attr_native_value = "idle"
+    _default_native_value = "waiting for receipt"
+    _default_attributes = {"status": "waiting_for_receipt"}
 
     _event_type = EVENT_SEEN
     _unique_id_prefix = "last_seen"
