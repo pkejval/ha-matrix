@@ -2,6 +2,8 @@
 
 Custom Home Assistant integration for Matrix rooms with UI config flow support.
 
+This is a maintained replacement for the official Home Assistant `matrix` integration, which is now effectively outdated for this use case.
+
 The integration uses the `matrix_rooms` domain so it does not clash with the built-in Home Assistant `matrix` integration.
 
 ## Features
