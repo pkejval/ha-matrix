@@ -21,7 +21,7 @@ from .const import (
     PLATFORMS,
     SERVICE_SEND_MESSAGE,
 )
-from .room import server_device_registry_kwargs
+from .room import iter_room_definitions, room_device_registry_kwargs, server_device_registry_kwargs
 
 if TYPE_CHECKING:
     from .client import MatrixRoomsClient
@@ -47,6 +47,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = hass.data.setdefault(DOMAIN, {})
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(**server_device_registry_kwargs(entry))
+    for room_def in iter_room_definitions({**entry.data, **entry.options}):
+        device_registry.async_get_or_create(**room_device_registry_kwargs(entry, room_def.room))
 
     if not domain_data.get("service_registered"):
         hass.services.async_register(
