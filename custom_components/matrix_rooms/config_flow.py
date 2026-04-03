@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
+from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_HOMESERVER, CONF_ROOMS, DOMAIN
@@ -106,17 +107,19 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_user(import_data)
 
 
-class MatrixRoomsOptionsFlow(config_entries.OptionsFlow):
+class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
     """Handle options for Matrix Rooms."""
 
-    def __init__(self, entry: config_entries.ConfigEntry) -> None:
-        self._entry = entry
-        self._user_input: dict[str, Any] = {**entry.data, **entry.options}
+    def __init__(self) -> None:
+        self._user_input: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Manage the options."""
+        if not self._user_input:
+            self._user_input = {**self.config_entry.data, **self.config_entry.options}
+
         if user_input is not None:
             self._user_input.update(user_input)
             return await self.async_step_rooms()
@@ -147,9 +150,10 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlow):
             errors=errors,
         )
 
-
-def async_get_options_flow(
-    config_entry: config_entries.ConfigEntry,
-) -> config_entries.OptionsFlow:
-    """Return the options flow."""
-    return MatrixRoomsOptionsFlow(config_entry)
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Return the options flow."""
+        return MatrixRoomsOptionsFlow()
