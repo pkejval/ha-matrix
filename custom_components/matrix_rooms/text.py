@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .entity import get_client
-from .room import iter_room_definitions
+from .room import iter_room_definitions, room_device_info
 
 
 class MatrixRoomMessageText(TextEntity, RestoreEntity):
@@ -30,6 +30,7 @@ class MatrixRoomMessageText(TextEntity, RestoreEntity):
         self._attr_name = "Message draft"
         self._attr_native_value = ""
         self._unsubscribe = None
+        self._attr_device_info = room_device_info(entry, room)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

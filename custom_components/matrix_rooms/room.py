@@ -7,7 +7,12 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .const import CONF_ROOMS
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+
+from homeassistant.const import CONF_USERNAME
+
+from .const import CONF_HOMESERVER, CONF_ROOMS, DOMAIN
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,3 +45,55 @@ def iter_room_definitions(config: dict[str, Any]) -> list[RoomDefinition]:
         )
         for room in rooms
     ]
+
+
+def server_device_identifier(entry: ConfigEntry) -> str:
+    """Return the stable identifier for the Matrix homeserver device."""
+    return entry.entry_id
+
+
+def room_device_identifier(entry: ConfigEntry, room: str) -> str:
+    """Return the stable identifier for a Matrix room device."""
+    return f"{entry.entry_id}:{room}"
+
+
+def server_device_info(entry: ConfigEntry) -> DeviceInfo:
+    """Return the device info for the Matrix homeserver device."""
+    config = {**entry.data, **entry.options}
+    homeserver = config[CONF_HOMESERVER]
+    username = config.get(CONF_USERNAME, entry.title)
+    return DeviceInfo(
+        identifiers={(DOMAIN, server_device_identifier(entry))},
+        name=f"{username} @ {homeserver}",
+        entry_type=DeviceEntryType.SERVICE,
+        default_manufacturer="Matrix",
+        default_model="Homeserver",
+        configuration_url=homeserver,
+    )
+
+
+def server_device_registry_kwargs(entry: ConfigEntry) -> dict[str, Any]:
+    """Return registry kwargs for the Matrix homeserver device."""
+    config = {**entry.data, **entry.options}
+    homeserver = config[CONF_HOMESERVER]
+    username = config.get(CONF_USERNAME, entry.title)
+    return {
+        "config_entry_id": entry.entry_id,
+        "identifiers": {(DOMAIN, server_device_identifier(entry))},
+        "name": f"{username} @ {homeserver}",
+        "entry_type": DeviceEntryType.SERVICE,
+        "manufacturer": "Matrix",
+        "model": "Homeserver",
+        "configuration_url": homeserver,
+    }
+
+
+def room_device_info(entry: ConfigEntry, room: str) -> DeviceInfo:
+    """Return the device info for a Matrix room device."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, room_device_identifier(entry, room))},
+        name=room,
+        via_device=(DOMAIN, server_device_identifier(entry)),
+        default_manufacturer="Matrix",
+        default_model="Room",
+    )

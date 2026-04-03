@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import get_client
 from .const import EVENT_RECEIVED_NEW_MSG, EVENT_SEEN
-from .room import iter_room_definitions
+from .room import iter_room_definitions, room_device_info
 
 
 class MatrixRoomEventSensor(SensorEntity):
@@ -29,6 +29,7 @@ class MatrixRoomEventSensor(SensorEntity):
         self._unsub = None
         self._unsub2 = None
         self._attrs: dict[str, Any] = {}
+        self._attr_device_info = room_device_info(entry, room)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

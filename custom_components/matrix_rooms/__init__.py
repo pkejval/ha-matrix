@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
@@ -20,6 +21,7 @@ from .const import (
     PLATFORMS,
     SERVICE_SEND_MESSAGE,
 )
+from .room import server_device_registry_kwargs
 
 if TYPE_CHECKING:
     from .client import MatrixRoomsClient
@@ -43,6 +45,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .client import MatrixRoomsClient
 
     domain_data = hass.data.setdefault(DOMAIN, {})
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(**server_device_registry_kwargs(entry))
 
     if not domain_data.get("service_registered"):
         hass.services.async_register(

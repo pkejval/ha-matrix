@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.exceptions import HomeAssistantError
 
 from .entity import get_client
-from .room import iter_room_definitions
+from .room import iter_room_definitions, room_device_info
 
 
 class MatrixRoomSendButton(ButtonEntity):
@@ -25,6 +25,7 @@ class MatrixRoomSendButton(ButtonEntity):
         self._room = room
         self._attr_unique_id = f"{entry.entry_id}_send_{suffix}"
         self._attr_name = "Send message"
+        self._attr_device_info = room_device_info(entry, room)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
