@@ -10,7 +10,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import get_client
-from .const import EVENT_RECEIVED_NEW_MSG, EVENT_SEEN
+from .const import (
+    ATTR_ENTRY_ID,
+    EVENT_LAST_MESSAGE_UPDATED,
+    EVENT_LAST_SEEN_UPDATED,
+    EVENT_RECEIVED_NEW_MSG,
+    EVENT_SEEN,
+)
 from .room import iter_room_definitions, room_device_info, room_display_name
 
 
@@ -77,9 +83,14 @@ class _BaseMatrixRoomEventSensor(SensorEntity):
         self._attr_native_value = self._format_native_value(data)
         self._attrs = {"event_type": event.event_type, **dict(data)}
         self.async_write_ha_state()
+        self._async_fire_update_event(data)
 
     def _format_native_value(self, data: dict[str, Any]) -> str:
         """Format the state shown in the UI."""
+        raise NotImplementedError
+
+    def _async_fire_update_event(self, data: dict[str, Any]) -> None:
+        """Fire a Matrix Rooms update event."""
         raise NotImplementedError
 
 
@@ -99,6 +110,24 @@ class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
         message = data.get("message", "")
         return f"{sender}: {message}"
 
+    def _async_fire_update_event(self, data: dict[str, Any]) -> None:
+        """Fire the last-message update event."""
+        self.hass.bus.async_fire(
+            EVENT_LAST_MESSAGE_UPDATED,
+            {
+                ATTR_ENTRY_ID: self._entry.entry_id,
+                "homeserver": self._client.homeserver,
+                "room_id": data.get("room_id"),
+                "room_name": data.get("room_name"),
+                "message": data.get("message"),
+                "sender": data.get("sender"),
+                "sender_name": data.get("sender_name"),
+                "self": data.get("self"),
+                "event_id": data.get("event_id"),
+                "timestamp": data.get("timestamp"),
+            },
+        )
+
 
 class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
     """Track the last Matrix receipt for a configured room."""
@@ -114,6 +143,25 @@ class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
         """Format the receipt state."""
         seen_by = data.get("seen_by_name", data.get("seen_by", "unknown"))
         return f"seen by {seen_by}"
+
+    def _async_fire_update_event(self, data: dict[str, Any]) -> None:
+        """Fire the last-seen update event."""
+        self.hass.bus.async_fire(
+            EVENT_LAST_SEEN_UPDATED,
+            {
+                ATTR_ENTRY_ID: self._entry.entry_id,
+                "homeserver": self._client.homeserver,
+                "room_id": data.get("room_id"),
+                "room_name": data.get("room_name"),
+                "seen_by": data.get("seen_by"),
+                "seen_by_name": data.get("seen_by_name"),
+                "self": data.get("self"),
+                "event_id": data.get("event_id"),
+                "receipt_type": data.get("receipt_type"),
+                "thread_id": data.get("thread_id"),
+                "timestamp": data.get("timestamp"),
+            },
+        )
 
 
 async def async_setup_entry(

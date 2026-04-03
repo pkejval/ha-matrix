@@ -19,5 +19,7 @@ SERVICE_SEND_MESSAGE = "send_message"
 EVENT_SEEN = f"{DOMAIN}_seen"
 EVENT_RECEIVED_NEW_MSG = f"{DOMAIN}_received_new_msg"
 EVENT_SENT_MSG = f"{DOMAIN}_sent_msg"
+EVENT_LAST_MESSAGE_UPDATED = f"{DOMAIN}_last_message_updated"
+EVENT_LAST_SEEN_UPDATED = f"{DOMAIN}_last_seen_updated"
 
 PLATFORMS = [Platform.SENSOR]
