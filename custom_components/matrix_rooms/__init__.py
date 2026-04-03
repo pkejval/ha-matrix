@@ -21,7 +21,12 @@ from .const import (
     PLATFORMS,
     SERVICE_SEND_MESSAGE,
 )
-from .room import iter_room_definitions, room_device_registry_kwargs, server_device_registry_kwargs
+from .room import (
+    iter_room_definitions,
+    room_device_identifier,
+    room_device_registry_kwargs,
+    server_device_registry_kwargs,
+)
 
 if TYPE_CHECKING:
     from .client import MatrixRoomsClient
@@ -47,8 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = hass.data.setdefault(DOMAIN, {})
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(**server_device_registry_kwargs(entry))
-    for room_def in iter_room_definitions({**entry.data, **entry.options}):
-        device_registry.async_get_or_create(**room_device_registry_kwargs(entry, room_def.room))
+    await _async_sync_room_devices(hass, entry, device_registry)
 
     if not domain_data.get("service_registered"):
         hass.services.async_register(
@@ -87,6 +91,31 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = None
     return True
+
+
+async def _async_sync_room_devices(
+    hass: HomeAssistant, entry: ConfigEntry, device_registry: dr.DeviceRegistry
+) -> None:
+    """Create configured room devices and remove stale ones."""
+    config = {**entry.data, **entry.options}
+    configured_rooms = {room_def.room for room_def in iter_room_definitions(config)}
+    expected_identifiers = {
+        (DOMAIN, room_device_identifier(entry, room)) for room in configured_rooms
+    }
+
+    for room in configured_rooms:
+        device_registry.async_get_or_create(**room_device_registry_kwargs(entry, room))
+
+    stale_devices = [
+        device
+        for device in device_registry.devices.values()
+        if entry.entry_id in device.config_entries
+        and any(identifier[0] == DOMAIN and identifier[1].startswith(f"{entry.entry_id}:") for identifier in device.identifiers)
+        and not any(identifier in expected_identifiers for identifier in device.identifiers)
+    ]
+
+    for device in stale_devices:
+        device_registry.async_remove_device(device.id)
 
 
 async def _async_send_message_service(call: ServiceCall) -> None:

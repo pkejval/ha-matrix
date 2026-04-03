@@ -94,12 +94,9 @@ def server_device_registry_kwargs(entry: ConfigEntry) -> dict[str, Any]:
 
 
 def room_device_info(entry: ConfigEntry, room: str) -> DeviceInfo:
-    """Return the device info for a Matrix room device."""
+    """Return the device info link for a Matrix room device."""
     return DeviceInfo(
         identifiers={(DOMAIN, room_device_identifier(entry, room))},
-        name=room_display_name(room),
-        default_manufacturer="Matrix",
-        default_model="Room",
     )
 
 
