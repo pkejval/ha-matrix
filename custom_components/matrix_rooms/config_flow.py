@@ -8,7 +8,6 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_HOMESERVER, CONF_ROOMS, DOMAIN
@@ -61,7 +60,9 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._user_input: dict[str, Any] = {}
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
 
@@ -75,7 +76,9 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
 
-    async def async_step_rooms(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_rooms(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Handle the room selection step."""
         errors: dict[str, str] = {}
 
@@ -96,7 +99,9 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_import(self, import_data: dict[str, Any]) -> FlowResult:
+    async def async_step_import(
+        self, import_data: dict[str, Any]
+    ) -> config_entries.ConfigFlowResult:
         """Import config from YAML if needed."""
         return await self.async_step_user(import_data)
 
@@ -108,7 +113,9 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlow):
         self._entry = entry
         self._user_input: dict[str, Any] = {**entry.data, **entry.options}
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
             self._user_input.update(user_input)
@@ -119,7 +126,9 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlow):
             data_schema=_user_schema(self._user_input),
         )
 
-    async def async_step_rooms(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_rooms(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
         """Edit rooms."""
         errors: dict[str, str] = {}
 
