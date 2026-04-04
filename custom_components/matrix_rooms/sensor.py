@@ -146,6 +146,11 @@ class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
         seen_by = data.get("seen_by_name", data.get("seen_by", "unknown"))
         return f"seen by {seen_by}"
 
+    async def async_added_to_hass(self) -> None:
+        """Listen for Matrix bus events and bootstrap from current room state."""
+        await super().async_added_to_hass()
+        self.hass.async_create_task(self._async_bootstrap_from_snapshot())
+
     def _async_fire_update_event(self, data: dict[str, Any]) -> None:
         """Fire the last-seen update event."""
         self.hass.bus.async_fire(
@@ -164,6 +169,18 @@ class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
                 "timestamp": data.get("timestamp"),
             },
         )
+
+    async def _async_bootstrap_from_snapshot(self) -> None:
+        """Populate the sensor from the latest known room receipt."""
+        await self._client.async_wait_until_ready()
+        snapshot = self._client.get_last_seen_snapshot(self._room)
+        if snapshot is None:
+            return
+
+        if not self.hass.is_stopping:
+            self._attr_native_value = self._format_native_value(snapshot)
+            self._attrs = {"event_type": EVENT_LAST_SEEN_UPDATED, **snapshot}
+            self.async_write_ha_state()
 
 
 async def async_setup_entry(

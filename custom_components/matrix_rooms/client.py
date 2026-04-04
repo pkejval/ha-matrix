@@ -68,6 +68,7 @@ class MatrixRoomsClient:
         self._draft_listeners: dict[str, list[Callable[[str], None]]] = {}
         self._room_refs: dict[str, str] = {}
         self._callbacks_registered = False
+        self._last_seen_snapshots: dict[str, dict[str, Any]] = {}
         self._client = AsyncClient(
             homeserver=self._homeserver,
             user=self._username,
@@ -374,21 +375,23 @@ class MatrixRoomsClient:
     def _async_handle_receipt(self, room: MatrixRoom, event: ReceiptEvent) -> None:
         """Forward read receipts to the Home Assistant event bus."""
         for receipt in event.receipts:
+            snapshot = {
+                ATTR_ENTRY_ID: self.entry.entry_id,
+                "homeserver": self._homeserver,
+                "room_id": room.room_id,
+                "room_name": getattr(room, "display_name", room.room_id),
+                "seen_by": receipt.user_id,
+                "seen_by_name": self._async_get_user_name(room, receipt.user_id),
+                "self": receipt.user_id == self._client.user_id,
+                "event_id": receipt.event_id,
+                "receipt_type": str(getattr(receipt, "receipt_type", "m.read")),
+                "thread_id": getattr(receipt, "thread_id", None),
+                "timestamp": getattr(receipt, "timestamp", None),
+            }
+            self._last_seen_snapshots[room.room_id] = snapshot
             self.hass.bus.async_fire(
                 EVENT_SEEN,
-                {
-                    ATTR_ENTRY_ID: self.entry.entry_id,
-                    "homeserver": self._homeserver,
-                    "room_id": room.room_id,
-                    "room_name": getattr(room, "display_name", room.room_id),
-                    "seen_by": receipt.user_id,
-                    "seen_by_name": self._async_get_user_name(room, receipt.user_id),
-                    "self": receipt.user_id == self._client.user_id,
-                    "event_id": receipt.event_id,
-                    "receipt_type": str(getattr(receipt, "receipt_type", "m.read")),
-                    "thread_id": getattr(receipt, "thread_id", None),
-                    "timestamp": getattr(receipt, "timestamp", None),
-                },
+                snapshot,
             )
 
     async def _async_wait_until_ready(self) -> None:
@@ -399,6 +402,10 @@ class MatrixRoomsClient:
             raise HomeAssistantError("Matrix client is not ready") from err
         if self._startup_error is not None:
             raise HomeAssistantError("Matrix client startup failed") from self._startup_error
+
+    async def async_wait_until_ready(self) -> None:
+        """Wait for the client to become ready."""
+        await self._async_wait_until_ready()
 
     def _canonical_room_ref(self, room_id_or_alias: str) -> str:
         """Return the canonical room id for a configured room reference."""
@@ -481,3 +488,47 @@ class MatrixRoomsClient:
                 return candidate
 
         return None
+
+    def get_last_seen_snapshot(self, room_id_or_alias: str) -> dict[str, Any] | None:
+        """Return the latest known read receipt for a room, if any."""
+        room_id = self._canonical_room_ref(room_id_or_alias)
+        cached = self._last_seen_snapshots.get(room_id)
+        if cached is not None:
+            return dict(cached)
+
+        room = self._client.rooms.get(room_id)
+        if room is None:
+            return None
+
+        receipts: list[Any] = []
+        receipts.extend(room.read_receipts.values())
+        for threaded in room.threaded_read_receipts.values():
+            receipts.extend(threaded.values())
+
+        if not receipts:
+            return None
+
+        receipt = max(
+            receipts,
+            key=lambda item: (
+                getattr(item, "timestamp", 0),
+                getattr(item, "event_id", ""),
+                getattr(item, "user_id", ""),
+            ),
+        )
+
+        snapshot = {
+            ATTR_ENTRY_ID: self.entry.entry_id,
+            "homeserver": self._homeserver,
+            "room_id": room.room_id,
+            "room_name": getattr(room, "display_name", room.room_id),
+            "seen_by": getattr(receipt, "user_id", None),
+            "seen_by_name": self._async_get_user_name(room, getattr(receipt, "user_id", "")),
+            "self": getattr(receipt, "user_id", None) == self._client.user_id,
+            "event_id": getattr(receipt, "event_id", None),
+            "receipt_type": str(getattr(receipt, "receipt_type", "m.read")),
+            "thread_id": getattr(receipt, "thread_id", None),
+            "timestamp": getattr(receipt, "timestamp", None),
+        }
+        self._last_seen_snapshots[room_id] = snapshot
+        return dict(snapshot)
