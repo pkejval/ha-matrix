@@ -121,6 +121,7 @@ class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
                 "room_name": data.get("room_name"),
                 "message": data.get("message"),
                 "msgtype": data.get("msgtype"),
+                "url": data.get("url"),
                 "sender": data.get("sender"),
                 "sender_name": data.get("sender_name"),
                 "self": data.get("self"),

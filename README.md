@@ -76,6 +76,7 @@ For each configured room, the integration creates:
 - `self`
 - `message`
 - `msgtype`
+- `url`
 - `event_id`
 - `timestamp`
 
@@ -104,6 +105,7 @@ For each configured room, the integration creates:
 - `self`
 - `message`
 - `msgtype`
+- `url`
 - `event_id`
 - `timestamp`
 
@@ -115,6 +117,7 @@ For each configured room, the integration creates:
 - `room_name`
 - `message`
 - `msgtype`
+- `url`
 - `sender`
 - `sender_name`
 - `self`

@@ -364,6 +364,7 @@ class MatrixRoomsClient:
                 "self": event.sender == self._client.user_id,
                 "message": message,
                 "msgtype": msgtype,
+                "url": self._async_get_message_url(event),
                 "event_id": event.event_id,
                 "timestamp": self._async_get_event_timestamp(event),
             },
@@ -448,20 +449,35 @@ class MatrixRoomsClient:
     def _async_format_message(event: RoomMessage, msgtype: str) -> str:
         """Return a user-friendly message summary."""
         body = getattr(event, "body", None)
+        if msgtype == "m.image":
+            return f"Image: {body}" if isinstance(body, str) and body else "Image"
+        if msgtype == "m.video":
+            return f"Video: {body}" if isinstance(body, str) and body else "Video"
+        if msgtype == "m.audio":
+            return f"Audio: {body}" if isinstance(body, str) and body else "Audio"
+        if msgtype == "m.file":
+            return f"File: {body}" if isinstance(body, str) and body else "File"
+        if msgtype == "m.notice":
+            return body if isinstance(body, str) and body else "Notice"
+        if msgtype == "m.emote":
+            return body if isinstance(body, str) and body else "Emote"
+
         if isinstance(body, str) and body:
             return body
 
-        if msgtype == "m.image":
-            return "Image"
-        if msgtype == "m.video":
-            return "Video"
-        if msgtype == "m.audio":
-            return "Audio"
-        if msgtype == "m.file":
-            return "File"
-        if msgtype == "m.notice":
-            return "Notice"
-        if msgtype == "m.emote":
-            return "Emote"
-
         return msgtype
+
+    @staticmethod
+    def _async_get_message_url(event: RoomMessage) -> str | None:
+        """Return the Matrix content URL if available."""
+        url = getattr(event, "url", None)
+        if isinstance(url, str) and url:
+            return url
+
+        content = getattr(event, "content", None)
+        if isinstance(content, dict):
+            candidate = content.get("url")
+            if isinstance(candidate, str) and candidate:
+                return candidate
+
+        return None

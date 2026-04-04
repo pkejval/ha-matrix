@@ -162,6 +162,7 @@ async def _async_send_message_service(call: ServiceCall) -> None:
             "self": True,
             "message": call.data[ATTR_MESSAGE],
             "msgtype": "m.text",
+            "url": None,
             "event_id": getattr(response, "event_id", None),
             "timestamp": int(time() * 1000),
         },
