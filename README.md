@@ -75,6 +75,7 @@ For each configured room, the integration creates:
 - `sender_name`
 - `self`
 - `message`
+- `msgtype`
 - `event_id`
 - `timestamp`
 
@@ -102,6 +103,7 @@ For each configured room, the integration creates:
 - `sender_name`
 - `self`
 - `message`
+- `msgtype`
 - `event_id`
 - `timestamp`
 
@@ -112,6 +114,7 @@ For each configured room, the integration creates:
 - `room_id`
 - `room_name`
 - `message`
+- `msgtype`
 - `sender`
 - `sender_name`
 - `self`
@@ -136,6 +139,8 @@ For each configured room, the integration creates:
 
 - `Last message` starts with `waiting for message`
 - `Last seen` starts with `waiting for receipt`
+
+`Last message` tracks any `m.room.message` subtype, including images, files, audio, and video.
 
 ## Automation examples
 

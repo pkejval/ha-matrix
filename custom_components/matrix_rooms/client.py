@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from nio import AsyncClient, MatrixRoom, RoomMessageText
+from nio import AsyncClient, MatrixRoom, RoomMessage
 from nio.client.async_client import AsyncClientConfig
 from nio.events.ephemeral import ReceiptEvent
 from nio.responses import (
@@ -191,7 +191,7 @@ class MatrixRoomsClient:
                     if not self._callbacks_registered:
                         self._client.add_event_callback(
                             self._async_handle_message,
-                            RoomMessageText,
+                            RoomMessage,
                         )
                         self._client.add_event_callback(
                             self._async_handle_receipt,
@@ -347,9 +347,11 @@ class MatrixRoomsClient:
         )
 
     @callback
-    def _async_handle_message(self, room: MatrixRoom, event: RoomMessageText) -> None:
-        """Forward received text messages to the Home Assistant event bus."""
+    def _async_handle_message(self, room: MatrixRoom, event: RoomMessage) -> None:
+        """Forward received Matrix messages to the Home Assistant event bus."""
         sender_name = self._async_get_user_name(room, event.sender)
+        msgtype = self._async_get_message_type(event)
+        message = self._async_format_message(event, msgtype)
         self.hass.bus.async_fire(
             EVENT_RECEIVED_NEW_MSG,
             {
@@ -360,7 +362,8 @@ class MatrixRoomsClient:
                 "sender": event.sender,
                 "sender_name": sender_name,
                 "self": event.sender == self._client.user_id,
-                "message": event.body,
+                "message": message,
+                "msgtype": msgtype,
                 "event_id": event.event_id,
                 "timestamp": self._async_get_event_timestamp(event),
             },
@@ -411,7 +414,7 @@ class MatrixRoomsClient:
             return user_id
 
     @staticmethod
-    def _async_get_event_timestamp(event: RoomMessageText) -> int | None:
+    def _async_get_event_timestamp(event: RoomMessage) -> int | None:
         """Return the Matrix event timestamp if available."""
         for attr_name in ("server_timestamp", "origin_server_ts", "timestamp"):
             value = getattr(event, attr_name, None)
@@ -425,3 +428,40 @@ class MatrixRoomsClient:
                 return value
 
         return None
+
+    @staticmethod
+    def _async_get_message_type(event: RoomMessage) -> str:
+        """Return the Matrix message type."""
+        msgtype = getattr(event, "msgtype", None)
+        if isinstance(msgtype, str) and msgtype:
+            return msgtype
+
+        content = getattr(event, "content", None)
+        if isinstance(content, dict):
+            candidate = content.get("msgtype")
+            if isinstance(candidate, str) and candidate:
+                return candidate
+
+        return event.__class__.__name__
+
+    @staticmethod
+    def _async_format_message(event: RoomMessage, msgtype: str) -> str:
+        """Return a user-friendly message summary."""
+        body = getattr(event, "body", None)
+        if isinstance(body, str) and body:
+            return body
+
+        if msgtype == "m.image":
+            return "Image"
+        if msgtype == "m.video":
+            return "Video"
+        if msgtype == "m.audio":
+            return "Audio"
+        if msgtype == "m.file":
+            return "File"
+        if msgtype == "m.notice":
+            return "Notice"
+        if msgtype == "m.emote":
+            return "Emote"
+
+        return msgtype
