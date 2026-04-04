@@ -68,6 +68,7 @@ class MatrixRoomsClient:
         self._draft_listeners: dict[str, list[Callable[[str], None]]] = {}
         self._room_refs: dict[str, str] = {}
         self._callbacks_registered = False
+        self._message_snapshots: dict[str, dict[str, dict[str, Any]]] = {}
         self._last_seen_snapshots: dict[str, dict[str, Any]] = {}
         self._client = AsyncClient(
             homeserver=self._homeserver,
@@ -353,28 +354,31 @@ class MatrixRoomsClient:
         sender_name = self._async_get_user_name(room, event.sender)
         msgtype = self._async_get_message_type(event)
         message = self._async_format_message(event, msgtype)
+        snapshot = {
+            ATTR_ENTRY_ID: self.entry.entry_id,
+            "homeserver": self._homeserver,
+            "room_id": room.room_id,
+            "room_name": getattr(room, "display_name", room.room_id),
+            "sender": event.sender,
+            "sender_name": sender_name,
+            "self": event.sender == self._client.user_id,
+            "message": message,
+            "msgtype": msgtype,
+            "url": self._async_get_message_url(event),
+            "event_id": event.event_id,
+            "timestamp": self._async_get_event_timestamp(event),
+        }
+        self._message_snapshots.setdefault(room.room_id, {})[event.event_id] = snapshot
         self.hass.bus.async_fire(
             EVENT_RECEIVED_NEW_MSG,
-            {
-                ATTR_ENTRY_ID: self.entry.entry_id,
-                "homeserver": self._homeserver,
-                "room_id": room.room_id,
-                "room_name": getattr(room, "display_name", room.room_id),
-                "sender": event.sender,
-                "sender_name": sender_name,
-                "self": event.sender == self._client.user_id,
-                "message": message,
-                "msgtype": msgtype,
-                "url": self._async_get_message_url(event),
-                "event_id": event.event_id,
-                "timestamp": self._async_get_event_timestamp(event),
-            },
+            snapshot,
         )
 
     @callback
     def _async_handle_receipt(self, room: MatrixRoom, event: ReceiptEvent) -> None:
         """Forward read receipts to the Home Assistant event bus."""
         for receipt in event.receipts:
+            message_snapshot = self._message_snapshots.get(room.room_id, {}).get(receipt.event_id)
             snapshot = {
                 ATTR_ENTRY_ID: self.entry.entry_id,
                 "homeserver": self._homeserver,
@@ -384,9 +388,16 @@ class MatrixRoomsClient:
                 "seen_by_name": self._async_get_user_name(room, receipt.user_id),
                 "self": receipt.user_id == self._client.user_id,
                 "event_id": receipt.event_id,
+                "message_id": receipt.event_id,
                 "receipt_type": str(getattr(receipt, "receipt_type", "m.read")),
                 "thread_id": getattr(receipt, "thread_id", None),
                 "timestamp": getattr(receipt, "timestamp", None),
+                "message": None if message_snapshot is None else message_snapshot.get("message"),
+                "message_sender": None if message_snapshot is None else message_snapshot.get("sender"),
+                "message_sender_name": None if message_snapshot is None else message_snapshot.get("sender_name"),
+                "message_msgtype": None if message_snapshot is None else message_snapshot.get("msgtype"),
+                "message_url": None if message_snapshot is None else message_snapshot.get("url"),
+                "message_timestamp": None if message_snapshot is None else message_snapshot.get("timestamp"),
             }
             self._last_seen_snapshots[room.room_id] = snapshot
             self.hass.bus.async_fire(
@@ -526,9 +537,24 @@ class MatrixRoomsClient:
             "seen_by_name": self._async_get_user_name(room, getattr(receipt, "user_id", "")),
             "self": getattr(receipt, "user_id", None) == self._client.user_id,
             "event_id": getattr(receipt, "event_id", None),
+            "message_id": getattr(receipt, "event_id", None),
             "receipt_type": str(getattr(receipt, "receipt_type", "m.read")),
             "thread_id": getattr(receipt, "thread_id", None),
             "timestamp": getattr(receipt, "timestamp", None),
+            "message": None,
+            "message_sender": None,
+            "message_sender_name": None,
+            "message_msgtype": None,
+            "message_url": None,
+            "message_timestamp": None,
         }
+        message_snapshot = self._message_snapshots.get(room.room_id, {}).get(snapshot["message_id"])
+        if message_snapshot is not None:
+            snapshot["message"] = message_snapshot.get("message")
+            snapshot["message_sender"] = message_snapshot.get("sender")
+            snapshot["message_sender_name"] = message_snapshot.get("sender_name")
+            snapshot["message_msgtype"] = message_snapshot.get("msgtype")
+            snapshot["message_url"] = message_snapshot.get("url")
+            snapshot["message_timestamp"] = message_snapshot.get("timestamp")
         self._last_seen_snapshots[room_id] = snapshot
         return dict(snapshot)
