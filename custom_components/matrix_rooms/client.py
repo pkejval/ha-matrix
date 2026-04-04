@@ -16,6 +16,8 @@ from nio.responses import (
     JoinResponse,
     LoginError,
     Response,
+    RoomGetEventError,
+    RoomGetEventResponse,
     RoomResolveAliasResponse,
     WhoamiError,
     WhoamiResponse,
@@ -351,23 +353,7 @@ class MatrixRoomsClient:
     @callback
     def _async_handle_message(self, room: MatrixRoom, event: RoomMessage) -> None:
         """Forward received Matrix messages to the Home Assistant event bus."""
-        sender_name = self._async_get_user_name(room, event.sender)
-        msgtype = self._async_get_message_type(event)
-        message = self._async_format_message(event, msgtype)
-        snapshot = {
-            ATTR_ENTRY_ID: self.entry.entry_id,
-            "homeserver": self._homeserver,
-            "room_id": room.room_id,
-            "room_name": getattr(room, "display_name", room.room_id),
-            "sender": event.sender,
-            "sender_name": sender_name,
-            "self": event.sender == self._client.user_id,
-            "message": message,
-            "msgtype": msgtype,
-            "url": self._async_get_message_url(event),
-            "event_id": event.event_id,
-            "timestamp": self._async_get_event_timestamp(event),
-        }
+        snapshot = self._build_message_snapshot(room, event)
         self._message_snapshots.setdefault(room.room_id, {})[event.event_id] = snapshot
         self.hass.bus.async_fire(
             EVENT_RECEIVED_NEW_MSG,
@@ -379,6 +365,11 @@ class MatrixRoomsClient:
         """Forward read receipts to the Home Assistant event bus."""
         for receipt in event.receipts:
             message_snapshot = self._message_snapshots.get(room.room_id, {}).get(receipt.event_id)
+            if message_snapshot is None:
+                self.hass.async_create_task(
+                    self._async_backfill_seen_snapshot(room.room_id, receipt.event_id),
+                    name=f"{DOMAIN}:seen-backfill:{self.entry.entry_id}:{receipt.event_id}",
+                )
             snapshot = {
                 ATTR_ENTRY_ID: self.entry.entry_id,
                 "homeserver": self._homeserver,
@@ -500,6 +491,86 @@ class MatrixRoomsClient:
 
         return None
 
+    def _build_message_snapshot(self, room: MatrixRoom, event: Any) -> dict[str, Any]:
+        """Build a normalized snapshot for a Matrix message event."""
+        sender = getattr(event, "sender", None)
+        sender_name = self._async_get_user_name(room, sender) if sender else "unknown"
+        msgtype = self._async_get_message_type(event)
+        return {
+            ATTR_ENTRY_ID: self.entry.entry_id,
+            "homeserver": self._homeserver,
+            "room_id": room.room_id,
+            "room_name": getattr(room, "display_name", room.room_id),
+            "sender": sender,
+            "sender_name": sender_name,
+            "self": sender == self._client.user_id,
+            "message": self._async_format_message(event, msgtype),
+            "msgtype": msgtype,
+            "url": self._async_get_message_url(event),
+            "event_id": getattr(event, "event_id", None),
+            "timestamp": self._async_get_event_timestamp(event),
+        }
+
+    @staticmethod
+    def _apply_message_snapshot(
+        snapshot: dict[str, Any], message_snapshot: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        """Merge message details into a seen snapshot."""
+        if message_snapshot is None:
+            return dict(snapshot)
+
+        merged = dict(snapshot)
+        merged["message"] = message_snapshot.get("message")
+        merged["message_sender"] = message_snapshot.get("sender")
+        merged["message_sender_name"] = message_snapshot.get("sender_name")
+        merged["message_msgtype"] = message_snapshot.get("msgtype")
+        merged["message_url"] = message_snapshot.get("url")
+        merged["message_timestamp"] = message_snapshot.get("timestamp")
+        return merged
+
+    async def async_get_message_snapshot(
+        self, room_id_or_alias: str, event_id: str
+    ) -> dict[str, Any] | None:
+        """Return a normalized message snapshot, fetching it if needed."""
+        room_id = self._canonical_room_ref(room_id_or_alias)
+        cached = self._message_snapshots.get(room_id, {}).get(event_id)
+        if cached is not None:
+            return dict(cached)
+
+        response = await self._client.room_get_event(room_id, event_id)
+        if isinstance(response, RoomGetEventResponse):
+            room = self._client.rooms.get(room_id)
+            room_object = room if room is not None else MatrixRoom(room_id, self._client.user_id or "")
+            snapshot = self._build_message_snapshot(room_object, response.event)
+            self._message_snapshots.setdefault(room_id, {})[event_id] = snapshot
+            return dict(snapshot)
+
+        if isinstance(response, RoomGetEventError):
+            _LOGGER.debug(
+                "Could not fetch Matrix event %s from room %s: %s %s",
+                event_id,
+                room_id,
+                response.status_code,
+                response.message,
+            )
+
+        return None
+
+    async def _async_backfill_seen_snapshot(self, room_id_or_alias: str, event_id: str) -> None:
+        """Best-effort backfill for a seen snapshot that missed the live cache."""
+        message_snapshot = await self.async_get_message_snapshot(room_id_or_alias, event_id)
+        if message_snapshot is None:
+            return
+
+        room_id = self._canonical_room_ref(room_id_or_alias)
+        seen_snapshot = self._last_seen_snapshots.get(room_id)
+        if seen_snapshot is None or seen_snapshot.get("message_id") != event_id:
+            return
+
+        enriched = self._apply_message_snapshot(seen_snapshot, message_snapshot)
+        self._last_seen_snapshots[room_id] = enriched
+        self.hass.bus.async_fire(EVENT_SEEN, enriched)
+
     def get_last_seen_snapshot(self, room_id_or_alias: str) -> dict[str, Any] | None:
         """Return the latest known read receipt for a room, if any."""
         room_id = self._canonical_room_ref(room_id_or_alias)
@@ -549,12 +620,6 @@ class MatrixRoomsClient:
             "message_timestamp": None,
         }
         message_snapshot = self._message_snapshots.get(room.room_id, {}).get(snapshot["message_id"])
-        if message_snapshot is not None:
-            snapshot["message"] = message_snapshot.get("message")
-            snapshot["message_sender"] = message_snapshot.get("sender")
-            snapshot["message_sender_name"] = message_snapshot.get("sender_name")
-            snapshot["message_msgtype"] = message_snapshot.get("msgtype")
-            snapshot["message_url"] = message_snapshot.get("url")
-            snapshot["message_timestamp"] = message_snapshot.get("timestamp")
+        snapshot = self._apply_message_snapshot(snapshot, message_snapshot)
         self._last_seen_snapshots[room_id] = snapshot
         return dict(snapshot)

@@ -177,6 +177,13 @@ class MatrixRoomLastSeenSensor(_BaseMatrixRoomEventSensor):
         if snapshot is None:
             return
 
+        if snapshot.get("message") is None and snapshot.get("message_id"):
+            message_snapshot = await self._client.async_get_message_snapshot(
+                self._room,
+                snapshot["message_id"],
+            )
+            snapshot = self._client._apply_message_snapshot(snapshot, message_snapshot)
+
         if not self.hass.is_stopping:
             self._attr_native_value = self._format_native_value(snapshot)
             self._attrs = {"event_type": EVENT_LAST_SEEN_UPDATED, **snapshot}
