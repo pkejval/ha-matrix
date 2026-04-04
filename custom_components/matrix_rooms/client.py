@@ -194,7 +194,7 @@ class MatrixRoomsClient:
                             self._async_handle_message,
                             RoomMessage,
                         )
-                        self._client.add_event_callback(
+                        self._client.add_ephemeral_callback(
                             self._async_handle_receipt,
                             ReceiptEvent,
                         )
