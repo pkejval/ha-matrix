@@ -73,6 +73,13 @@
           "room_add": "Add another room",
           "finish": "Finish setup"
         }
+      },
+      "menu": {
+        "title": "Matrix server options",
+        "menu_options": {
+          "room_add": "Edit rooms",
+          "finish": "Save options"
+        }
       }
     },
     "error": {

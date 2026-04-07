@@ -73,6 +73,13 @@
           "room_add": "Přidat další místnost",
           "finish": "Dokončit nastavení"
         }
+      },
+      "menu": {
+        "title": "Nastavení Matrix serveru",
+        "menu_options": {
+          "room_add": "Upravit místnosti",
+          "finish": "Uložit nastavení"
+        }
       }
     },
     "error": {
