@@ -1,0 +1,83 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Přidat Matrix server",
+        "data": {
+          "homeserver": "Homeserver",
+          "username": "Uživatelské jméno",
+          "password": "Heslo",
+          "verify_ssl": "Ověřit SSL",
+          "emit_global_seen_events": "Posílat globální seen události"
+        }
+      },
+      "rooms": {
+        "title": "Místnosti",
+        "data": {
+          "rooms": "Místnosti"
+        }
+      },
+      "room_add": {
+        "title": "Přidat místnost",
+        "data": {
+          "rooms": "ID nebo alias místnosti"
+        }
+      },
+      "room_menu": {
+        "title": "Místnosti",
+        "menu_options": {
+          "room_add": "Přidat další místnost",
+          "finish": "Dokončit nastavení"
+        }
+      },
+      "menu": {
+        "title": "Nastavení Matrix serveru",
+        "menu_options": {
+          "room_add": "Upravit místnosti",
+          "finish": "Uložit nastavení"
+        }
+      }
+    },
+    "error": {
+      "invalid_homeserver": "Zadej platnou URL Matrix homeserveru s http nebo https.",
+      "invalid_room": "Zadej Matrix ID místnosti nebo alias začínající ! nebo #."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Upravit Matrix server",
+        "data": {
+          "homeserver": "Homeserver",
+          "username": "Uživatelské jméno",
+          "password": "Heslo",
+          "verify_ssl": "Ověřit SSL",
+          "emit_global_seen_events": "Posílat globální seen události"
+        }
+      },
+      "rooms": {
+        "title": "Místnosti",
+        "data": {
+          "rooms": "Místnosti"
+        }
+      },
+      "room_add": {
+        "title": "Přidat místnost",
+        "data": {
+          "rooms": "ID nebo alias místnosti"
+        }
+      },
+      "room_menu": {
+        "title": "Místnosti",
+        "menu_options": {
+          "room_add": "Přidat další místnost",
+          "finish": "Dokončit nastavení"
+        }
+      }
+    },
+    "error": {
+      "invalid_homeserver": "Zadej platnou URL Matrix homeserveru s http nebo https.",
+      "invalid_room": "Zadej Matrix ID místnosti nebo alias začínající ! nebo #."
+    }
+  }
+}
