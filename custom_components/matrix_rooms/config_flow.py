@@ -13,7 +13,9 @@ from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
-from .const import CONF_HOMESERVER, CONF_ROOMS, DOMAIN
+from .const import CONF_EMIT_GLOBAL_SEEN_EVENTS, CONF_HOMESERVER, CONF_ROOMS, DOMAIN
+
+
 def _parse_room(value: str) -> str:
     """Parse a single room id or alias from a text field."""
     room = value.strip()
@@ -43,6 +45,10 @@ def _user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_VERIFY_SSL,
                 default=defaults.get(CONF_VERIFY_SSL, True),
+            ): cv.boolean,
+            vol.Optional(
+                CONF_EMIT_GLOBAL_SEEN_EVENTS,
+                default=defaults.get(CONF_EMIT_GLOBAL_SEEN_EVENTS, False),
             ): cv.boolean,
         }
     )
@@ -94,7 +100,11 @@ class MatrixRoomsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._rooms = []
                 return await self.async_step_room_add()
 
-        return self.async_show_form(step_id="user", data_schema=_user_schema(), errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_user_schema(),
+            errors=errors,
+        )
 
     async def async_step_room_add(
         self, user_input: dict[str, Any] | None = None
@@ -166,12 +176,28 @@ class MatrixRoomsOptionsFlow(config_entries.OptionsFlowWithReload):
             self._rooms = list(self._user_input.get(CONF_ROOMS, []))
 
         if user_input is not None:
+            try:
+                user_input[CONF_HOMESERVER] = _validate_homeserver(
+                    user_input[CONF_HOMESERVER]
+                )
+            except vol.Invalid:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=_user_schema(self._user_input),
+                    errors={CONF_HOMESERVER: "invalid_homeserver"},
+                )
             self._user_input.update(user_input)
-            return await self.async_step_room_add()
+            return await self.async_step_menu()
 
-        return self.async_show_form(
-            step_id="init",
-            data_schema=_user_schema(self._user_input),
+        return self.async_show_form(step_id="init", data_schema=_user_schema(self._user_input))
+
+    async def async_step_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Choose whether to edit rooms or finish."""
+        return self.async_show_menu(
+            step_id="menu",
+            menu_options=["room_add", "finish"],
         )
 
     async def async_step_room_add(

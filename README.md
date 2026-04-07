@@ -10,11 +10,13 @@ The integration uses the `matrix_rooms` domain so it does not clash with the bui
 
 - Multiple Matrix servers, each as its own config entry
 - Per-entry homeserver, username, password, and `verify_ssl`
+- Optional per-entry global seen event emission
 - Room list per server
 - Send plain text messages to Matrix rooms
 - Fire Home Assistant events for:
   - `matrix_rooms_received_new_msg`
   - `matrix_rooms_seen`
+  - `matrix_rooms_any_seen`
   - `matrix_rooms_sent_msg`
   - `matrix_rooms_last_message_updated`
   - `matrix_rooms_last_seen_updated`
@@ -86,6 +88,13 @@ For each configured room, the integration creates:
 - `homeserver`
 - `room_id`
 - `room_name`
+- `message_id`
+- `message`
+- `message_sender`
+- `message_sender_name`
+- `message_msgtype`
+- `message_url`
+- `message_timestamp`
 - `seen_by`
 - `seen_by_name`
 - `self`
@@ -130,6 +139,13 @@ For each configured room, the integration creates:
 - `homeserver`
 - `room_id`
 - `room_name`
+- `message_id`
+- `message`
+- `message_sender`
+- `message_sender_name`
+- `message_msgtype`
+- `message_url`
+- `message_timestamp`
 - `seen_by`
 - `seen_by_name`
 - `self`
@@ -138,12 +154,19 @@ For each configured room, the integration creates:
 - `thread_id`
 - `timestamp`
 
+### `matrix_rooms_any_seen`
+
+Emitted only when `Emit global seen events` is enabled for that Matrix server in the HA options UI.
+
+Payload matches `matrix_rooms_seen`.
+
 ### Sensor states
 
 - `Last message` starts with `waiting for message`
 - `Last seen` starts with `waiting for receipt`
 
 `Last message` tracks any `m.room.message` subtype, including images, files, audio, and video.
+`matrix_rooms_seen` and `matrix_rooms_any_seen` include the seen message details when available.
 
 ## Automation examples
 
@@ -187,4 +210,18 @@ action:
     data:
       name: Matrix
       message: "{{ trigger.event.data.room_name }} seen by {{ trigger.event.data.seen_by_name }}"
+```
+
+### Global seen event
+
+```yaml
+alias: Matrix any room seen
+trigger:
+  - platform: event
+    event_type: matrix_rooms_any_seen
+action:
+  - service: persistent_notification.create
+    data:
+      title: "Matrix seen"
+      message: "{{ trigger.event.data.seen_by_name }} saw a message in {{ trigger.event.data.room_name }}: {{ trigger.event.data.message }}"
 ```

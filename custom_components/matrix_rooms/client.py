@@ -39,7 +39,9 @@ from .const import (
     ATTR_ROOM_ID,
     CONF_HOMESERVER,
     CONF_ROOMS,
+    CONF_EMIT_GLOBAL_SEEN_EVENTS,
     DOMAIN,
+    EVENT_ANY_SEEN,
     EVENT_RECEIVED_NEW_MSG,
     EVENT_SEEN,
 )
@@ -62,6 +64,9 @@ class MatrixRoomsClient:
         self._password: str = config[CONF_PASSWORD]
         self._verify_ssl: bool = config[CONF_VERIFY_SSL]
         self._configured_rooms: list[str] = list(config.get(CONF_ROOMS, []))
+        self._emit_global_seen_events: bool = bool(
+            config.get(CONF_EMIT_GLOBAL_SEEN_EVENTS, False)
+        )
         self._store_path = hass.config.path(f"{_SESSION_FILE_PREFIX}{entry.entry_id}")
         self._session_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
         self._ready = asyncio.Event()
@@ -395,6 +400,11 @@ class MatrixRoomsClient:
                 EVENT_SEEN,
                 snapshot,
             )
+            if self._emit_global_seen_events:
+                self.hass.bus.async_fire(
+                    EVENT_ANY_SEEN,
+                    snapshot,
+                )
 
     async def _async_wait_until_ready(self) -> None:
         """Wait for the first successful startup or fail fast."""
@@ -570,6 +580,8 @@ class MatrixRoomsClient:
         enriched = self._apply_message_snapshot(seen_snapshot, message_snapshot)
         self._last_seen_snapshots[room_id] = enriched
         self.hass.bus.async_fire(EVENT_SEEN, enriched)
+        if self._emit_global_seen_events:
+            self.hass.bus.async_fire(EVENT_ANY_SEEN, enriched)
 
     def get_last_seen_snapshot(self, room_id_or_alias: str) -> dict[str, Any] | None:
         """Return the latest known read receipt for a room, if any."""

@@ -7,7 +7,8 @@
           "homeserver": "Homeserver",
           "username": "Username",
           "password": "Password",
-          "verify_ssl": "Verify SSL"
+          "verify_ssl": "Verify SSL",
+          "emit_global_seen_events": "Emit global seen events"
         }
       },
       "rooms": {
@@ -43,7 +44,8 @@
           "homeserver": "Homeserver",
           "username": "Username",
           "password": "Password",
-          "verify_ssl": "Verify SSL"
+          "verify_ssl": "Verify SSL",
+          "emit_global_seen_events": "Emit global seen events"
         }
       },
       "rooms": {
