@@ -54,25 +54,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .client import MatrixRoomsClient
 
     domain_data = hass.data.setdefault(DOMAIN, {})
-    device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(**server_device_registry_kwargs(entry))
-    await _async_sync_room_devices(hass, entry, device_registry)
-
-    if not domain_data.get("service_registered"):
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_SEND_MESSAGE,
-            _async_send_message_service,
-            schema=SERVICE_SEND_MESSAGE_SCHEMA,
-        )
-        domain_data["service_registered"] = True
-
     client = MatrixRoomsClient(hass, entry)
     entry.runtime_data = client
     domain_data[entry.entry_id] = client
     try:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         await client.async_start()
+        device_registry = dr.async_get(hass)
+        device_registry.async_get_or_create(**server_device_registry_kwargs(entry))
+        await _async_sync_room_devices(hass, entry, device_registry)
+
+        if not domain_data.get("service_registered"):
+            hass.services.async_register(
+                DOMAIN,
+                SERVICE_SEND_MESSAGE,
+                _async_send_message_service,
+                schema=SERVICE_SEND_MESSAGE_SCHEMA,
+            )
+            domain_data["service_registered"] = True
+
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
         await client.async_stop()
         domain_data.pop(entry.entry_id, None)
