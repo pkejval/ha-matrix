@@ -1,7 +1,7 @@
 {
   "domain": "matrix_rooms",
   "name": "Matrix Rooms",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "config_flow": true,
   "documentation": "https://github.com/pkejval/ha-matrix",
   "issue_tracker": "https://github.com/pkejval/ha-matrix/issues",
