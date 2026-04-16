@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from time import time
 from typing import Any
 
 from nio import AsyncClient, MatrixRoom, RoomMessage
@@ -50,6 +51,8 @@ _SESSION_FILE_PREFIX = ".matrix_rooms_"
 _SYNC_TIMEOUT_MS = 30_000
 _SYNC_LOOP_SLEEP_MS = 1_000
 _SERVICE_READY_TIMEOUT = 30
+_RECENT_MESSAGE_WINDOW_MS = 5 * 60 * 1000
+_RECENT_MESSAGE_LIMIT = 20
 
 
 class MatrixRoomsClient:
@@ -76,6 +79,7 @@ class MatrixRoomsClient:
         self._room_refs: dict[str, str] = {}
         self._callbacks_registered = False
         self._message_snapshots: dict[str, dict[str, dict[str, Any]]] = {}
+        self._recent_message_history: dict[str, list[dict[str, Any]]] = {}
         self._last_seen_snapshots: dict[str, dict[str, Any]] = {}
         self._client = AsyncClient(
             homeserver=self._homeserver,
@@ -359,11 +363,16 @@ class MatrixRoomsClient:
     def _async_handle_message(self, room: MatrixRoom, event: RoomMessage) -> None:
         """Forward received Matrix messages to the Home Assistant event bus."""
         snapshot = self._build_message_snapshot(room, event)
+        snapshot["recent_messages"] = self._async_get_recent_messages(
+            room.room_id,
+            snapshot["timestamp"],
+        )
         self._message_snapshots.setdefault(room.room_id, {})[event.event_id] = snapshot
         self.hass.bus.async_fire(
             EVENT_RECEIVED_NEW_MSG,
             snapshot,
         )
+        self._async_store_recent_message(room.room_id, snapshot)
 
     @callback
     def _async_handle_receipt(self, room: MatrixRoom, event: ReceiptEvent) -> None:
@@ -506,6 +515,9 @@ class MatrixRoomsClient:
         sender = getattr(event, "sender", None)
         sender_name = self._async_get_user_name(room, sender) if sender else "unknown"
         msgtype = self._async_get_message_type(event)
+        timestamp = self._async_get_event_timestamp(event)
+        if timestamp is None:
+            timestamp = int(time() * 1000)
         return {
             ATTR_ENTRY_ID: self.entry.entry_id,
             "homeserver": self._homeserver,
@@ -518,8 +530,39 @@ class MatrixRoomsClient:
             "msgtype": msgtype,
             "url": self._async_get_message_url(event),
             "event_id": getattr(event, "event_id", None),
-            "timestamp": self._async_get_event_timestamp(event),
+            "timestamp": timestamp,
         }
+
+    def _async_get_recent_messages(
+        self, room_id: str, current_timestamp: int
+    ) -> list[dict[str, Any]]:
+        """Return previous room messages from the last five minutes."""
+        cutoff = current_timestamp - _RECENT_MESSAGE_WINDOW_MS
+        recent_messages = []
+        for item in self._recent_message_history.get(room_id, []):
+            timestamp = item.get("timestamp")
+            if not isinstance(timestamp, int):
+                continue
+            if cutoff <= timestamp <= current_timestamp:
+                recent_messages.append(dict(item))
+        return recent_messages
+
+    def _async_store_recent_message(self, room_id: str, snapshot: dict[str, Any]) -> None:
+        """Store a room message in the rolling recent-message buffer."""
+        history = self._recent_message_history.setdefault(room_id, [])
+        history.append(dict(snapshot))
+
+        timestamp = snapshot.get("timestamp")
+        if isinstance(timestamp, int):
+            cutoff = timestamp - _RECENT_MESSAGE_WINDOW_MS
+            history[:] = [
+                item
+                for item in history
+                if isinstance(item.get("timestamp"), int) and item["timestamp"] >= cutoff
+            ]
+
+        if len(history) > _RECENT_MESSAGE_LIMIT:
+            del history[:-_RECENT_MESSAGE_LIMIT]
 
     @staticmethod
     def _apply_message_snapshot(

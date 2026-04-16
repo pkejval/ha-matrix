@@ -127,6 +127,7 @@ class MatrixRoomLastMessageSensor(_BaseMatrixRoomEventSensor):
                 "self": data.get("self"),
                 "event_id": data.get("event_id"),
                 "timestamp": data.get("timestamp"),
+                "recent_messages": data.get("recent_messages"),
             },
         )
 
