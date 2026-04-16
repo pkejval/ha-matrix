@@ -81,9 +81,6 @@ For each configured room, the integration creates:
 - `url`
 - `event_id`
 - `timestamp`
-- `recent_messages`
-
-`recent_messages` contains the previous messages from the same room that are at most 5 minutes older than the current message, up to a small built-in limit to keep the payload bounded.
 
 ### `matrix_rooms_seen`
 
