@@ -72,7 +72,6 @@ class MatrixRoomsClient:
         )
         self._store_path = hass.config.path(f"{_SESSION_FILE_PREFIX}{entry.entry_id}")
         self._session_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
-        self._recent_message_store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.recent")
         self._ready = asyncio.Event()
         self._startup_error: BaseException | None = None
         self._draft_messages: dict[str, str] = {}
@@ -201,7 +200,6 @@ class MatrixRoomsClient:
                     self._startup_error = None
                     self._ready.clear()
                     await self._async_login()
-                    await self._async_load_recent_message_history()
                     await self._async_resolve_and_join_rooms()
                     if not self._callbacks_registered:
                         self._client.add_event_callback(
@@ -565,51 +563,6 @@ class MatrixRoomsClient:
 
         if len(history) > _RECENT_MESSAGE_LIMIT:
             del history[:-_RECENT_MESSAGE_LIMIT]
-
-        self.hass.async_create_task(
-            self._async_save_recent_message_history(),
-            name=f"{DOMAIN}:recent-history-save:{self.entry.entry_id}",
-        )
-
-    async def _async_load_recent_message_history(self) -> None:
-        """Load the persisted recent message buffer."""
-        data = await self._recent_message_store.async_load()
-        if not isinstance(data, dict):
-            self._recent_message_history = {}
-            return
-
-        now_ms = int(time() * 1000)
-        cutoff = now_ms - _RECENT_MESSAGE_WINDOW_MS
-        loaded: dict[str, list[dict[str, Any]]] = {}
-        for room_id, items in data.items():
-            if not isinstance(room_id, str) or not isinstance(items, list):
-                continue
-            room_items: list[dict[str, Any]] = []
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                timestamp = item.get("timestamp")
-                if not isinstance(timestamp, int):
-                    continue
-                if timestamp < cutoff:
-                    continue
-                room_items.append(dict(item))
-            if room_items:
-                room_items.sort(key=lambda item: item.get("timestamp", 0))
-                if len(room_items) > _RECENT_MESSAGE_LIMIT:
-                    room_items = room_items[-_RECENT_MESSAGE_LIMIT:]
-                loaded[room_id] = room_items
-
-        self._recent_message_history = loaded
-
-    async def _async_save_recent_message_history(self) -> None:
-        """Persist the recent message buffer."""
-        data = {
-            room_id: [dict(item) for item in items[-_RECENT_MESSAGE_LIMIT:]]
-            for room_id, items in self._recent_message_history.items()
-            if items
-        }
-        await self._recent_message_store.async_save(data)
 
     @staticmethod
     def _apply_message_snapshot(
