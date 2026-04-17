@@ -51,8 +51,7 @@ _SESSION_FILE_PREFIX = ".matrix_rooms_"
 _SYNC_TIMEOUT_MS = 30_000
 _SYNC_LOOP_SLEEP_MS = 1_000
 _SERVICE_READY_TIMEOUT = 30
-_RECENT_MESSAGE_WINDOW_MS = 5 * 60 * 1000
-_RECENT_MESSAGE_LIMIT = 20
+_RECENT_MESSAGE_LIMIT = 5
 
 
 class MatrixRoomsClient:
@@ -363,10 +362,7 @@ class MatrixRoomsClient:
     def _async_handle_message(self, room: MatrixRoom, event: RoomMessage) -> None:
         """Forward received Matrix messages to the Home Assistant event bus."""
         snapshot = self._build_message_snapshot(room, event)
-        snapshot["recent_messages"] = self._async_get_recent_messages(
-            room.room_id,
-            snapshot["timestamp"],
-        )
+        snapshot["recent_messages"] = self._async_get_recent_messages(room.room_id)
         self._message_snapshots.setdefault(room.room_id, {})[event.event_id] = snapshot
         self.hass.bus.async_fire(
             EVENT_RECEIVED_NEW_MSG,
@@ -533,34 +529,22 @@ class MatrixRoomsClient:
             "timestamp": timestamp,
         }
 
-    def _async_get_recent_messages(
-        self, room_id: str, current_timestamp: int
-    ) -> list[dict[str, Any]]:
-        """Return previous room messages from the last five minutes."""
-        cutoff = current_timestamp - _RECENT_MESSAGE_WINDOW_MS
-        recent_messages = []
-        for item in self._recent_message_history.get(room_id, []):
-            timestamp = item.get("timestamp")
-            if not isinstance(timestamp, int):
-                continue
-            if cutoff <= timestamp <= current_timestamp:
-                recent_messages.append(dict(item))
-        return recent_messages
+    @staticmethod
+    def _async_strip_recent_messages(snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Return a snapshot without nested recent message context."""
+        stripped = dict(snapshot)
+        stripped.pop("recent_messages", None)
+        return stripped
+
+    def _async_get_recent_messages(self, room_id: str) -> list[dict[str, Any]]:
+        """Return the previous five room messages."""
+        history = self._recent_message_history.get(room_id, [])
+        return [self._async_strip_recent_messages(item) for item in history[-_RECENT_MESSAGE_LIMIT:]]
 
     def _async_store_recent_message(self, room_id: str, snapshot: dict[str, Any]) -> None:
         """Store a room message in the rolling recent-message buffer."""
         history = self._recent_message_history.setdefault(room_id, [])
-        history.append(dict(snapshot))
-
-        timestamp = snapshot.get("timestamp")
-        if isinstance(timestamp, int):
-            cutoff = timestamp - _RECENT_MESSAGE_WINDOW_MS
-            history[:] = [
-                item
-                for item in history
-                if isinstance(item.get("timestamp"), int) and item["timestamp"] >= cutoff
-            ]
-
+        history.append(self._async_strip_recent_messages(snapshot))
         if len(history) > _RECENT_MESSAGE_LIMIT:
             del history[:-_RECENT_MESSAGE_LIMIT]
 
